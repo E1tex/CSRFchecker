@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Endpoint Checker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+        input[type="file"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        input[type="checkbox"] {
+            margin-right: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: #fff;
+            font-size: 18px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .toggle-button {
+            cursor: pointer;
+            color: #007bff;
+            text-decoration: underline;
+            font-weight: bold;
+            display: inline-block;
+            margin-right: 20px;
+        }
+        h3 {
+            font-size: 24px;
+            margin-top: 20px;
+        }
+        ul {
+            padding: 0;
+            list-style-type: none;
+        }
+        ul li {
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Endpoint CSRF Checker</h1>
+        <label for="file">Upload a file with endpoints (one per line):</label>
+        <input type="file" id="file" required>
+        <label for="requestMethod">Select request method:</label>
+        <select id="requestMethod" required>
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+        </select>
+        <label for="requestBody" class="hidden">Request Body (for POST):</label>
+        <textarea id="requestBody" class="hidden"></textarea>
+        <label for="withCredentials">Include Credentials:</label>
+        <input type="checkbox" id="withCredentials">
+        <label for="textPlainContentType">Use text/plain Content-Type:</label>
+        <input type="checkbox" id="textPlainContentType">
+        <label for="pass"></label>
+        <button onclick="sendRequests()">Check Endpoints</button>
+        <h2>Results:</h2>
+        <div>
+            <span class="toggle-button" onclick="toggleSuccessfulResults()">Toggle Successful Results</span>
+            <span class="toggle-button" onclick="toggleFailedResults()">Toggle Failed Results</span>
+        </div>
+        <div id="successfulResults" class="hidden">
+            <h3>Successful Results:</h3>
+            <ul></ul>
+        </div>
+        <div id="failedResults" class="hidden">
+            <h3>Failed Results:</h3>
+            <ul></ul>
+        </div>
+    </div>
+
+    <script>
+        const successfulResultsList = document.getElementById('successfulResults').getElementsByTagName('ul')[0];
+        const failedResultsList = document.getElementById('failedResults').getElementsByTagName('ul')[0];
+
+        function toggleRequestBodyVisibility() {
+            const requestBodyLabel = document.querySelector('label[for="requestBody"]');
+            const requestBodyTextarea = document.getElementById('requestBody');
+            const requestMethod = document.getElementById('requestMethod').value;
+            
+            if (requestMethod === 'POST') {
+                requestBodyLabel.classList.remove('hidden');
+                requestBodyTextarea.classList.remove('hidden');
+            } else {
+                requestBodyLabel.classList.add('hidden');
+                requestBodyTextarea.classList.add('hidden');
+                requestBodyTextarea.value = '';
+            }
+        }
+
+        async function sendRequests() {
+            const fileInput = document.getElementById('file');
+            const requestMethod = document.getElementById('requestMethod').value;
+            successfulResultsList.innerHTML = '';
+            failedResultsList.innerHTML = '';
+
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select a file.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const lines = event.target.result.split('\n');
+                const requestBody = document.getElementById('requestBody').value;
+                const withCredentials = document.getElementById('withCredentials').checked;
+                const useTextPlainContentType = document.getElementById('textPlainContentType').checked;
+
+                for (const line of lines) {
+                    const endpoint = line.trim();
+                    if (endpoint) {
+                        try {
+                            const requestOptions = {
+                                method: requestMethod,
+                                credentials: withCredentials ? 'include' : 'same-origin'
+                            };
+
+                            if (requestMethod === 'POST') {
+                                if (useTextPlainContentType) {
+                                    requestOptions.headers = {
+                                        'Content-Type': 'text/plain'
+                                    };
+                                } else {
+                                    requestOptions.headers = {
+                                        'Content-Type': 'application/json'
+                                    };
+                                }
+                                requestOptions.body = requestBody;
+                            }
+
+                            const response = await fetch(endpoint, requestOptions);
+                            const status = response.status;
+                            const resultItem = document.createElement('li');
+                            resultItem.textContent = `Endpoint: ${endpoint}, Status: ${status}`;
+                            if (status === 200) {
+                                successfulResultsList.appendChild(resultItem);
+                            } else {
+                                resultItem.classList.add('error');
+                                failedResultsList.appendChild(resultItem);
+                            }
+                        } catch (error) {
+                            const resultItem = document.createElement('li');
+                            resultItem.textContent = `Endpoint: ${endpoint}, Error: ${error}`;
+                            resultItem.classList.add('error');
+                            failedResultsList.appendChild(resultItem);
+                        }
+                    }
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function toggleSuccessfulResults() {
+            const successfulResultsDiv = document.getElementById('successfulResults');
+            successfulResultsDiv.classList.toggle('hidden');
+        }
+
+        function toggleFailedResults() {
+            const failedResultsDiv = document.getElementById('failedResults');
+            failedResultsDiv.classList.toggle('hidden');
+        }
+
+        window.addEventListener('load', toggleRequestBodyVisibility);
+        document.getElementById('requestMethod').addEventListener('change', toggleRequestBodyVisibility);
+    </script>
+</body>
+</html>
